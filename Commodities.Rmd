@@ -1,0 +1,351 @@
+---
+title: "Key commodities"
+runtime: shiny
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: rows
+    vertical_layout: fill
+---
+
+```{r setup, include=FALSE}
+library(flexdashboard)
+library(dplyr)
+library(ggplot2)
+library(shiny)
+
+df = read.csv("India_Key_Commodities_Retail_Prices_1997_2015.csv")
+summary(df)
+df$Date = as.Date(df$Date,"%d-%m-%Y")
+df= df %>% mutate(Year = format(Date,"%Y"))
+str(df)
+df$Year = as.numeric(df$Year) # imp to note df$Year mention year
+```
+
+Summary
+=============================================================
+
+Row {.sidebar}
+-----------------------------------------------------------------------
+
+### Filter
+
+```{r}
+selectInput(inputId = "Item1", label = "Select Commodities", 
+            choices = c("All", as.character(unique(df$Commodity))), selected = "All")
+checkboxGroupInput(inputId = "Item2", label = "Select Region", 
+            choices = c("All", as.character(unique(df$Region))), selected = "All")
+
+dateRangeInput(inputId = "Item3",label = "Date Range",start = min(df$Date),end = max(df$Date),separator = "to")
+```
+
+
+Row {data-height=100}
+-----------------------------------------------------------------------
+
+### value box1
+
+
+```{r}
+
+renderValueBox({
+  data1={
+    if(input$Item1=="All"){
+    A = df  %>% summarise(Max = max(Price.per.Kg),Min= min(Price.per.Kg))
+    }else {
+    A = df %>% filter(Commodity==input$Item1) %>% 
+      summarise(Max = max(Price.per.Kg),Min= min(Price.per.Kg))
+    }
+    A
+  }
+valueBox(value = data1$Max,caption = "Maximum Price",icon = "fa-inr",color = "red")
+})
+```
+
+### value box2
+```{r}
+
+renderValueBox({
+  data1={
+    if(input$Item1=="All"){
+    A = df  %>% summarise(Max = max(Price.per.Kg),Min= min(Price.per.Kg))
+    }else {
+    A = df %>% filter(Commodity==input$Item1) %>% 
+      summarise(Max = max(Price.per.Kg),Min= min(Price.per.Kg))
+    }
+    A
+  }
+valueBox(value = data1$Min,caption = "Minimum Price",icon = "fa-inr",color = "green")
+})
+```
+
+
+Row
+---------------------------------------------------------------------------
+### Graph1
+
+```{r}
+renderPlot({
+  
+  data3 = {
+    if(input$Item1=="All"){
+      if(input$Item2=="All"){
+        B = df %>% filter(Date>=input$Item3[1] & Date<=input$Item3[2])
+      } else {
+          B = df %>% filter(Region==input$Item2,Date>=input$Item3[1] & Date<=input$Item3[2])
+        }
+    } else {
+        B = df %>% filter(Commodity== input$Item1,Region==input$Item2,Date>=input$Item3[1] & Date<=input$Item3[2])
+      }
+  B
+    }
+  C= B %>%  group_by(Year,Commodity) %>% summarise(m=mean(Price.per.Kg,na.rm = TRUE)) 
+  ggplot(C, aes(Year,m, color= Commodity)) + geom_line() + theme_bw( )
+  
+})
+
+```
+
+Onion {data-navmenu="Graphs" data-icon="fa-list"}
+==================================================
+Row{data-height=150}
+------------------------------------------------
+
+### Max
+```{r}
+renderValueBox({
+  onion =filter(df,Commodity == "Onion") %>% summarise(max(Price.per.Kg))
+  valueBox(onion,"Max Price ", icon = "fa-inr", color = "red")
+})
+
+```
+
+### Min
+```{r}
+renderValueBox({
+  onion =filter(df,Commodity == "Onion") %>% summarise(min(Price.per.Kg))
+  valueBox(onion,"Min Price", icon = "fa-inr", color = "blue")
+})
+```
+
+Row
+--------------------------------------------------
+
+```{r}
+renderPlot({
+  df$Date = as.Date(df$Date,"%d-%m-%Y")
+  df= df %>% mutate(Year = format(Date,"%Y"))
+  df= df %>% mutate(Month = format(Date,"%m"))
+  df$Year = as.integer(df$Year)
+  df$Month = as.integer(df$Month)
+  D= filter(df, Commodity == 'Onion' & Month == 09)
+  p = D %>% group_by(Year) %>% summarise(avg = mean(Price.per.Kg))
+  ggplot(p, aes(Year, avg)) + geom_line(col='red') + geom_point(col='black') +     geom_text(aes(label=round(avg,2)), vjust=-.25) + geom_smooth(col='blue') + labs(y='Average Onion Prices across regions',title = 'Annual Onion Price trends in September')
+
+})
+```
+
+Tomato {data-navmenu="Graphs" data-icon="fa-list"}
+==========================================
+
+row {data-height=150}
+----------------------------------------------------------
+
+### V1
+```{r}
+renderValueBox({
+  Tomato =filter(df,Commodity == "Tomato") %>% summarise(max(Price.per.Kg))
+  valueBox(Tomato,"Max Price ", icon = "fa-inr", color = "red")
+})
+```
+
+
+### V2
+```{r}
+renderValueBox({
+  Tomato =filter(df,Commodity == "Tomato") %>% summarise(min(Price.per.Kg))
+  valueBox(Tomato,"Max Price ", icon = "fa-inr", color = "blue")
+})
+```
+
+row
+--------------------------------------------------------
+### Graph 
+```{r}
+library(plotly)
+renderPlotly({
+  tomato=filter(df,Commodity == "Tomato")
+avgtomato=tomato %>% group_by(Year,Commodity) %>% summarise(avgprice=mean(Price.per.Kg))
+avgtomato$Year=as.numeric(avgtomato$Year)
+avgpriceoftomato=ggplot(avgtomato,aes(Year,avgprice))+geom_line() +
+  scale_x_discrete(limits = unique(tomato$Year)) + theme_bw()
+
+ggplotly(avgpriceoftomato)
+})
+
+```
+
+### Table
+```{r}
+library(DT)
+
+
+renderDataTable({
+  DT::datatable(
+    df %>% filter(Commodity == "Tomato") %>% group_by(Year) %>%summarise(avgprice=mean(Price.per.Kg,na.rm = TRUE)),
+             options= list(pageLength= 5)
+             )
+})
+```
+
+Milk {data-navmenu="Graphs" data-icon="fa-info-circle"}
+=================================================================
+
+row{data-height=150}
+-------------------------------------------------------------------
+###chart1
+```{r}
+renderValueBox({
+  M =filter(df,Commodity == "Milk") %>% summarise(max(Price.per.Kg))
+  valueBox(M,"Max Price ", icon = "fa-inr", color = "red")
+})
+```
+
+### chart 2
+```{r}
+renderValueBox({
+  M =filter(df,Commodity == "Milk") %>% summarise(min(Price.per.Kg))
+  valueBox(M,"Max Price ", icon = "fa-inr", color = "Blue")
+})
+```
+
+row 
+----------------------------------------------------------------
+### Graph
+```{r}
+library(plotly)
+renderPlotly({
+  
+  milk=filter(df,Commodity == "Milk")
+avgmilk=milk %>% group_by(Year) %>% summarise(avg_price=mean(Price.per.Kg))
+avgpriceofmilk=ggplot(avgmilk,aes(Year,avg_price))+geom_bar(stat = "identity",fill= rainbow(13)) +
+  scale_x_discrete(limit = unique(df$Year))
+ggplotly(avgpriceofmilk)
+
+}
+)
+```
+
+
+
+Salt {data-navmenu="Graphs" data-icon="fa-info-circle"}
+=================================================================
+
+row {data-height=70}
+-------------------------------------------------------------------
+### Max
+```{r}
+valueBox({
+ 
+   salt= filter(df,Commodity =="Salt Pack (Iodised)") %>% summarise(max(Price.per.Kg))
+   valueBox(salt,"Max Price ", icon = "fa-inr", color = "red")
+
+    })
+
+```
+
+### Min
+```{r}
+valueBox({
+ 
+   salt= filter(df,Commodity =="Salt Pack (Iodised)") %>% summarise(min(Price.per.Kg))
+   valueBox(salt,"Max Price ", icon = "fa-inr", color = "blue")
+
+    })
+
+```
+
+row 
+----------------------------------------------------------------
+###
+```{r}
+library(googleVis)
+
+uiOutput("vinay")
+
+output$vinay = renderUI({
+  htmlOutput("India")
+})
+
+
+output$India = 
+renderGvis({
+  s1 = filter(df,Commodity == "Salt Pack (Iodised)")
+s = s1 %>% group_by(Centre) %>%  summarise(Avg_prices= mean(Price.per.Kg))
+  
+gvisGeoChart(data = s,locationvar = "Centre",colorvar = "Avg_prices",
+               options = list(region = "IN",
+                              backgroundColor = "lightblue",
+                              displayMode = "markers",
+                              height = 450,
+                              width = 1100,
+                              colorAxis = "{values:[6,13,20],colors:[\'yellow',\'green',\'red']}"
+                             ))
+})
+
+
+```
+
+
+GDP {data-navmenu="Graphs" data-icon="fa-info-circle"}
+=================================================================
+
+<!-- row{data-height=130} -->
+<!-- ------------------------------------------------------------------- -->
+<!-- ###chart1 -->
+<!-- ```{r} -->
+<!-- valueBox({ -->
+
+<!--    gdp = filter(df,Commodity =="Salt Pack (Iodised)") %>% summarise(max(Price.per.Kg)) -->
+<!--    valueBox(salt,"Max Price ", icon = "fa-inr", color = "red") -->
+
+<!--     }) -->
+
+<!-- ``` -->
+
+<!-- ### chart 2 -->
+<!-- ```{r} -->
+<!-- valueBox({ -->
+
+<!--    gdp= filter(df,Commodity =="Salt Pack (Iodised)") %>% summarise(min(Price.per.Kg)) -->
+<!--    valueBox(salt,"Max Price ", icon = "fa-inr", color = "blue") -->
+
+<!--     }) -->
+<!-- ``` --> 
+ <!--# cntrl + shift + C -->
+
+row {.tabset .tabset-fade}
+----------------------------------------------------------------
+### Graph
+```{r}
+renderPlotly({
+  z= df %>% group_by(Year,Region) %>% summarise(Avg.price=mean(Price.per.Kg))
+  z = as.data.frame(z)
+ g= ggplot(z,aes(Year,Avg.price,fill = as.factor(Year))) + geom_bar(stat = "identity") + 
+    facet_wrap(~Region,nrow = 1)  +theme(legend.position = "bottom") + theme_minimal()
+  ggplotly(g)
+})
+```
+
+### Stack all Region commoditize
+
+
+```{r}
+library(plotly)
+renderPlotly({
+  z= df %>% group_by(Commodity,Region) %>% summarise(Avg.price=mean(Price.per.Kg))
+  z = as.data.frame(z)
+ g= ggplot(z,aes(Commodity,Avg.price,fill= Region)) + geom_bar(stat = "identity",position = "stack") + theme(legend.position = "bottom") + theme_minimal() 
+  ggplotly(g)
+})
+```
+
